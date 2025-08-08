@@ -55,6 +55,7 @@ class RoomClient {
         await this.join(name, room_id)
         this.initSockets()
         this._isOpen = true
+        initRecording(this.socket, this)
         successCallback()
       }.bind(this)
     )

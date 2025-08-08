@@ -19,9 +19,10 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.19.2",
-    "mediasoup": "^3.14.1",
+    "mediasoup": "^3.18.0",
     "mediasoup-client": "^3.7.7",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "prettier": "3.2.5"

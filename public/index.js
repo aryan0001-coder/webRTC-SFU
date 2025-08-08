@@ -41,6 +41,8 @@ function roomOpen() {
   reveal(exitButton)
   reveal(copyButton)
   reveal(devicesButton)
+  reveal(startRecordingButton)
+  reveal(stopRecordingButton)
   control.className = ''
   reveal(videoMedia)
 }
