@@ -253,6 +253,11 @@ class RecordingManager {
 
         if (producer.kind === 'video') {
           videoRtpParameters = consumer.rtpParameters
+          try {
+            await consumer.requestKeyFrame()
+          } catch (e) {
+            console.warn('requestKeyFrame failed:', e?.message || e)
+          }
         } else if (producer.kind === 'audio') {
           audioRtpParameters = consumer.rtpParameters
         }
