@@ -1,7 +1,7 @@
 const { getCodecInfoFromRtpParameters } = require('./utils')
 
 module.exports.createSdpText = (rtpParameters) => {
-  const { videoCodec, audioCodec, remoteRtpPort } = rtpParameters
+  const { videoCodec, audioCodec, remoteRtpPort, remoteAudioRtpPort } = rtpParameters
 
   const sdpLines = ['v=0', 'o=- 0 0 IN IP4 127.0.0.1', 's=FFmpeg', 'c=IN IP4 127.0.0.1', 't=0 0']
 
@@ -12,7 +12,7 @@ module.exports.createSdpText = (rtpParameters) => {
     sdpLines.push(
       `m=video ${remoteRtpPort} RTP/AVP ${videoInfo.payloadType}`,
       `a=rtpmap:${videoInfo.payloadType} ${videoInfo.codecName}/${videoInfo.clockRate}`,
-      'a=sendonly'
+      'a=recvonly'
     )
 
     // Add fmtp line if present
@@ -28,10 +28,12 @@ module.exports.createSdpText = (rtpParameters) => {
     const audioInfo = getCodecInfoFromRtpParameters('audio', audioCodec)
     const audioCodecInfo = audioCodec.codecs[0]
 
+    const audioPort = remoteAudioRtpPort || (remoteRtpPort + 2)
+
     sdpLines.push(
-      `m=audio ${remoteRtpPort + 2} RTP/AVP ${audioInfo.payloadType}`,
+      `m=audio ${audioPort} RTP/AVP ${audioInfo.payloadType}`,
       `a=rtpmap:${audioInfo.payloadType} ${audioInfo.codecName}/${audioInfo.clockRate}/${audioInfo.channels || 2}`,
-      'a=sendonly'
+      'a=recvonly'
     )
 
     // Add fmtp line if present

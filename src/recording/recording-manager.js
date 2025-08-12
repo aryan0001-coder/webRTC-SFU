@@ -3,6 +3,8 @@ const { createSdpText } = require('./sdp')
 const { convertStringToStream } = require('./utils')
 const path = require('path')
 const fs = require('fs')
+const dgram = require('dgram')
+const { getSupportedRtpCapabilities } = require('mediasoup')
 
 class RecordingManager {
   constructor(room, socket) {
@@ -10,6 +12,32 @@ class RecordingManager {
     this.socket = socket
     this.activeRecordings = new Map()
     this.recordingTransports = new Map()
+  }
+
+  async _getFreeBasePort() {
+    // Find a UDP base port P such that P and P+2 are free (for video and audio)
+    async function isPortFree(port) {
+      return new Promise((resolve) => {
+        const sock = dgram.createSocket('udp4')
+        sock.once('error', () => {
+          try { sock.close() } catch {}
+          resolve(false)
+        })
+        sock.bind({ port, address: '127.0.0.1', exclusive: true }, () => {
+          const ok = true
+          try { sock.close() } catch {}
+          resolve(ok)
+        })
+      })
+    }
+
+    for (let attempts = 0; attempts < 50; attempts += 1) {
+      const candidate = 10000 + Math.floor(Math.random() * 40000)
+      const ok1 = await isPortFree(candidate)
+      const ok2 = await isPortFree(candidate + 2)
+      if (ok1 && ok2) return candidate
+    }
+    throw new Error('Unable to allocate free UDP ports for recording')
   }
 
   async startRecording(data) {
@@ -26,13 +54,6 @@ class RecordingManager {
         throw new Error('Router not initialized')
       }
 
-      // Check if router has the createPlainTransport method
-      if (typeof router.createPlainTransport !== 'function') {
-        console.error('Router object:', router)
-        console.error('Router methods:', Object.keys(router))
-        throw new Error('router.createPlainTransport is not a function')
-      }
-
       // Create a recording transport
       const transport = await router.createPlainTransport({
         listenIp: '127.0.0.1',
@@ -41,10 +62,9 @@ class RecordingManager {
       })
 
       const recordingId = `rec-${Date.now()}`
-      const fileName = `recording-${recordingId}.mp4`
+      const fileName = `recording-${recordingId}.webm`
       console.log('recordingid', recordingId)
       console.log('filename', fileName)
-      //console.log('filepath', filePath)
 
       const filePath = path.join('files', fileName)
 
@@ -54,16 +74,13 @@ class RecordingManager {
         fs.mkdirSync(recordDir, { recursive: true })
       }
 
-      // Get RTP capabilities
-      const rtpCapabilities = this.room.router.rtpCapabilities
-
       // Get actual codecs from producers instead of router capabilities
       const peers = this.room.getPeers()
       let videoCodec = null
       let audioCodec = null
 
-      for (const [peerId, peer] of peers) {
-        for (const [producerId, producer] of peer.producers) {
+      for (const [, peer] of peers) {
+        for (const [, producer] of peer.producers) {
           if (producer.kind === 'video' && !videoCodec) {
             videoCodec = producer.rtpParameters
           }
@@ -77,18 +94,16 @@ class RecordingManager {
         throw new Error('No video or audio producers found for recording')
       }
 
-      // Create RTP parameters for FFmpeg with null checks
-      if (!transport.tuple || !transport.tuple.localPort) {
-        throw new Error('Transport tuple or localPort is undefined')
-      }
+      // Pick free UDP ports for FFmpeg to receive on
+      const basePort = await this._getFreeBasePort()
+      const ffmpegVideoPort = basePort
+      const ffmpegAudioPort = basePort + 2
 
       const rtpParameters = {
         videoCodec,
         audioCodec,
-        remoteRtpPort: transport.tuple.localPort,
-        remoteRtcpPort: transport.tuple.localPort + 1,
-        localRtpPort: transport.tuple.localPort,
-        localRtcpPort: transport.tuple.localPort + 1,
+        remoteRtpPort: ffmpegVideoPort,
+        remoteAudioRtpPort: ffmpegAudioPort,
         fileName,
         filePath
       }
@@ -108,6 +123,13 @@ class RecordingManager {
         room_id,
         user_name,
         producers: []
+      })
+
+      // Connect transport to FFmpeg's receive ports so mediasoup sends RTP there
+      await transport.connect({
+        ip: '127.0.0.1',
+        port: ffmpegVideoPort,
+        rtcpPort: ffmpegVideoPort + 1
       })
 
       // Connect all existing producers to this recording
@@ -184,8 +206,8 @@ class RecordingManager {
 
     console.log('Peers in room:', peers.size)
 
-    for (const [peerId, peer] of peers) {
-      for (const [producerId, producer] of peer.producers) {
+    for (const [, peer] of peers) {
+      for (const [, producer] of peer.producers) {
         if (producer.kind === 'video' || producer.kind === 'audio') {
           producers.push(producer)
         }
@@ -194,40 +216,23 @@ class RecordingManager {
 
     console.log('Producers found:', producers.length)
 
+    const router = this.room.router
+    const recorderRtpCapabilities = getSupportedRtpCapabilities()
+
     // Connect each producer to the recording
     for (const producer of producers) {
       try {
-        // Skip producers without valid RTP parameters
-        if (
-          !producer.rtpParameters ||
-          !producer.rtpParameters.codecs ||
-          !Array.isArray(producer.rtpParameters.codecs) ||
-          producer.rtpParameters.codecs.length === 0
-        ) {
-          console.warn(`Skipping producer ${producer.id} - no valid codecs found`)
+        if (!router.canConsume({ producerId: producer.id, rtpCapabilities: recorderRtpCapabilities })) {
+          console.warn(`Recorder cannot consume producer ${producer.id}`)
           continue
         }
 
-        // Create proper RTP parameters for the consumer using mediasoup's expected format
-        const codec = producer.rtpParameters.codecs[0]
-
-        // Build the RTP parameters in the format mediasoup expects
-        const consumerRtpParameters = {
-          codecs: [codec],
-          encodings: producer.rtpParameters.encodings || [{}],
-          headerExtensions: producer.rtpParameters.headerExtensions || []
-        }
-
-        console.log(`Using codec for producer ${producer.id}:`, codec)
-
-        // Create consumer with proper RTP parameters
         const consumer = await recording.transport.consume({
           producerId: producer.id,
-          rtpParameters: consumerRtpParameters,
-          paused: false
+          rtpCapabilities: recorderRtpCapabilities,
+          paused: true
         })
 
-        // Resume the consumer
         await consumer.resume()
 
         // Add to recording producers
