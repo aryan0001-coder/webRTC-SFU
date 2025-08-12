@@ -48,18 +48,10 @@ class RecordingManager {
         throw new Error('Room not initialized')
       }
 
-      // Get router directly from room
       const router = this.room.router
       if (!router) {
         throw new Error('Router not initialized')
       }
-
-      // Create a recording transport
-      const transport = await router.createPlainTransport({
-        listenIp: '127.0.0.1',
-        rtcpMux: false,
-        comedia: false
-      })
 
       const recordingId = `rec-${Date.now()}`
       const fileName = `recording-${recordingId}.webm`
@@ -103,7 +95,7 @@ class RecordingManager {
         videoCodec,
         audioCodec,
         remoteRtpPort: ffmpegVideoPort,
-        remoteAudioRtpPort: ffmpegAudioPort,
+        remoteAudioRtpPort: audioCodec ? ffmpegAudioPort : undefined,
         fileName,
         filePath
       }
@@ -113,23 +105,31 @@ class RecordingManager {
       // Create FFmpeg instance
       const ffmpeg = new FFmpeg(rtpParameters)
 
+      // Create separate plain transports per kind so ports match the SDP
+      let videoTransport = null
+      let audioTransport = null
+
+      if (videoCodec) {
+        videoTransport = await router.createPlainTransport({ listenIp: '127.0.0.1', rtcpMux: false, comedia: false })
+        await videoTransport.connect({ ip: '127.0.0.1', port: ffmpegVideoPort, rtcpPort: ffmpegVideoPort + 1 })
+      }
+
+      if (audioCodec) {
+        audioTransport = await router.createPlainTransport({ listenIp: '127.0.0.1', rtcpMux: false, comedia: false })
+        await audioTransport.connect({ ip: '127.0.0.1', port: ffmpegAudioPort, rtcpPort: ffmpegAudioPort + 1 })
+      }
+
       // Store recording info
       this.activeRecordings.set(recordingId, {
         ffmpeg,
-        transport,
+        videoTransport,
+        audioTransport,
         fileName,
         filePath,
         startTime: Date.now(),
         room_id,
         user_name,
         producers: []
-      })
-
-      // Connect transport to FFmpeg's receive ports so mediasoup sends RTP there
-      await transport.connect({
-        ip: '127.0.0.1',
-        port: ffmpegVideoPort,
-        rtcpPort: ffmpegVideoPort + 1
       })
 
       // Connect all existing producers to this recording
@@ -157,23 +157,28 @@ class RecordingManager {
 
       const recording = this.activeRecordings.get(recording_id)
 
-      // Close all producers
-      for (const producer of recording.producers) {
+      // Close all consumers
+      for (const consumer of recording.producers) {
         try {
-          await producer.close()
+          await consumer.close()
         } catch (e) {
-          console.error('Error closing producer:', e)
+          console.error('Error closing consumer:', e)
         }
       }
 
       // Stop FFmpeg
       recording.ffmpeg.kill()
 
-      // Close transport
+      // Close transports
       try {
-        await recording.transport.close()
+        if (recording.videoTransport) await recording.videoTransport.close()
       } catch (e) {
-        console.error('Error closing transport:', e)
+        console.error('Error closing video transport:', e)
+      }
+      try {
+        if (recording.audioTransport) await recording.audioTransport.close()
+      } catch (e) {
+        console.error('Error closing audio transport:', e)
       }
 
       // Check if file exists
@@ -200,7 +205,6 @@ class RecordingManager {
     const recording = this.activeRecordings.get(recordingId)
     if (!recording) return
 
-    // Get all active producers in the room
     const peers = this.room.getPeers()
     const producers = []
 
@@ -219,7 +223,6 @@ class RecordingManager {
     const router = this.room.router
     const recorderRtpCapabilities = getSupportedRtpCapabilities()
 
-    // Connect each producer to the recording
     for (const producer of producers) {
       try {
         if (!router.canConsume({ producerId: producer.id, rtpCapabilities: recorderRtpCapabilities })) {
@@ -227,7 +230,14 @@ class RecordingManager {
           continue
         }
 
-        const consumer = await recording.transport.consume({
+        // Choose transport by kind so FFmpeg receives on the correct port
+        const transport = producer.kind === 'video' ? recording.videoTransport : recording.audioTransport
+        if (!transport) {
+          console.warn(`No transport available for ${producer.kind} producer ${producer.id}`)
+          continue
+        }
+
+        const consumer = await transport.consume({
           producerId: producer.id,
           rtpCapabilities: recorderRtpCapabilities,
           paused: true
@@ -235,7 +245,6 @@ class RecordingManager {
 
         await consumer.resume()
 
-        // Add to recording producers
         recording.producers.push(consumer)
 
         console.log(`Connected ${producer.kind} producer to recording: ${producer.id}`)
