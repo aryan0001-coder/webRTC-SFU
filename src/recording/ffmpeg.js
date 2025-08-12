@@ -57,46 +57,36 @@ module.exports = class FFmpeg {
 
   get _commandArgs() {
     let commandArgs = [
+      '-nostdin',
+      '-y',
       '-loglevel',
       'debug',
       '-protocol_whitelist',
       'pipe,udp,rtp',
       '-fflags',
       '+genpts',
+      '-analyzeduration',
+      '10000000',
+      '-probesize',
+      '10000000',
       '-f',
       'sdp',
       '-i',
       'pipe:0'
     ]
 
-    commandArgs = commandArgs.concat(this._videoArgs)
-    commandArgs = commandArgs.concat(this._audioArgs)
+    // Map video
+    commandArgs = commandArgs.concat(['-map', '0:v:0', '-c:v', 'copy'])
 
-    commandArgs = commandArgs.concat([
-      /*
-      '-flags',
-      '+global_header',
-      */
-      `${RECORD_FILE_LOCATION_PATH}/${this._rtpParameters.fileName}.webm`
-    ])
+    // Map audio only if present in SDP (by presence of audioCodec)
+    if (this._rtpParameters.audioCodec) {
+      commandArgs = commandArgs.concat(['-map', '0:a:0', '-c:a', 'copy', '-strict', '-2'])
+    }
+
+    commandArgs = commandArgs.concat([`${RECORD_FILE_LOCATION_PATH}/${this._rtpParameters.fileName}`])
 
     console.log('commandArgs:%o', commandArgs)
 
     return commandArgs
-  }
-
-  get _videoArgs() {
-    return ['-map', '0:v:0', '-c:v', 'copy']
-  }
-
-  get _audioArgs() {
-    return [
-      '-map',
-      '0:a:0',
-      '-strict', // libvorbis is experimental
-      '-2',
-      '-c:a',
-      'copy'
-    ]
   }
 }
