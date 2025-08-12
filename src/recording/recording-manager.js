@@ -137,6 +137,20 @@ class RecordingManager {
       const rec = this.activeRecordings.get(recordingId)
       if (rec) rec.ffmpeg = ffmpeg
 
+      // Now resume consumers and request keyframes for video
+      if (rec) {
+        for (const consumer of rec.producers) {
+          try {
+            await consumer.resume()
+            if (consumer.kind === 'video') {
+              try { await consumer.requestKeyFrame() } catch (e) { console.warn('requestKeyFrame failed:', e?.message || e) }
+            }
+          } catch (e) {
+            console.warn('Failed to resume consumer:', e?.message || e)
+          }
+        }
+      }
+
       return {
         success: true,
         recording_id: recordingId,
@@ -247,17 +261,11 @@ class RecordingManager {
           paused: true
         })
 
-        await consumer.resume()
-
+        // Do not resume yet; wait until FFmpeg is ready
         recording.producers.push(consumer)
 
         if (producer.kind === 'video') {
           videoRtpParameters = consumer.rtpParameters
-          try {
-            await consumer.requestKeyFrame()
-          } catch (e) {
-            console.warn('requestKeyFrame failed:', e?.message || e)
-          }
         } else if (producer.kind === 'audio') {
           audioRtpParameters = consumer.rtpParameters
         }
