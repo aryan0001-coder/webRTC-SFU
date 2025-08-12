@@ -6,6 +6,7 @@ const config = require('./config')
 const path = require('path')
 const Room = require('./Room')
 const Peer = require('./Peer')
+const RecordingHandler = require('./recording-handler')
 
 const httpServer = http.createServer(app)
 const io = require('socket.io')(httpServer)
@@ -77,7 +78,12 @@ io.on('connection', (socket) => {
     } else {
       console.log('Created room', { room_id: room_id })
       let worker = await getMediasoupWorker()
-      roomList.set(room_id, new Room(room_id, worker, io))
+      const room = new Room(room_id, worker, io)
+
+      // Initialize the router
+      await room.initializeRouter(worker)
+
+      roomList.set(room_id, room)
       callback(room_id)
     }
   })
@@ -227,6 +233,78 @@ io.on('connection', (socket) => {
     socket.room_id = null
 
     callback('successfully exited room')
+  })
+
+  // Recording functionality
+  socket.on('startRecording', async (data, callback) => {
+    try {
+      console.log('Start recording request:', {
+        room_id: data.room_id,
+        user_name: data.user_name,
+        socket_id: socket.id
+      })
+
+      if (!roomList.has(data.room_id)) {
+        return callback({
+          success: false,
+          error: 'Room does not exist'
+        })
+      }
+
+      const room = roomList.get(data.room_id)
+      const recordingHandler = new RecordingHandler(room, socket)
+
+      // Store recording handler for this socket
+      if (!socket.recordingHandlers) {
+        socket.recordingHandlers = new Map()
+      }
+
+      const response = await recordingHandler.startRecording(data)
+
+      if (response.success) {
+        socket.recordingHandlers.set(response.recording_id, recordingHandler)
+        callback(response)
+      } else {
+        callback(response)
+      }
+    } catch (error) {
+      console.error('Start recording error:', error)
+      callback({
+        success: false,
+        error: error.message
+      })
+    }
+  })
+
+  socket.on('stopRecording', async (data, callback) => {
+    try {
+      console.log('Stop recording request:', {
+        recording_id: data.recording_id,
+        socket_id: socket.id
+      })
+
+      if (!socket.recordingHandlers || !socket.recordingHandlers.has(data.recording_id)) {
+        return callback({
+          success: false,
+          error: 'Recording not found'
+        })
+      }
+
+      const recordingHandler = socket.recordingHandlers.get(data.recording_id)
+      const response = await recordingHandler.stopRecording(data)
+
+      if (response.success) {
+        socket.recordingHandlers.delete(data.recording_id)
+      }
+
+      callback(response)
+    } catch (error) {
+      console.error('Stop recording error:', error)
+      callback({
+        success: false,
+        error: error.message
+      })
+    }
   })
 })
 

@@ -42,15 +42,19 @@ class RecordingManager {
         this.updateUI(true)
         this.startRecordingTimer()
         this.showSuccess('Recording started successfully')
+        console.log('Recording started:', response)
       } else {
         throw new Error(response.error || 'Failed to start recording')
       }
     } catch (error) {
       console.error('Start recording error:', error)
-      this.showError(error.message)
+      this.showError(error.message || 'Unknown error occurred')
     } finally {
       const btn = document.getElementById('startRecordingButton')
-      if (btn) btn.disabled = false
+      if (btn) {
+        btn.disabled = false
+        btn.innerHTML = '<i class="fas fa-record-vinyl"></i> Start Recording'
+      }
     }
   }
 
@@ -67,13 +71,14 @@ class RecordingManager {
         this.isRecording = false
         this.updateUI(false)
         this.stopRecordingTimer()
-        this.showSuccess(`Recording saved: ${response.filename}`)
+        this.showSuccess(`Recording saved: ${response.file_name}`)
+        console.log('Recording stopped:', response)
       } else {
         throw new Error(response.error || 'Failed to stop recording')
       }
     } catch (error) {
       console.error('Stop recording error:', error)
-      this.showError(error.message)
+      this.showError(error.message || 'Unknown error occurred')
     } finally {
       const btn = document.getElementById('stopRecordingButton')
       if (btn) btn.disabled = false
@@ -137,7 +142,7 @@ class RecordingManager {
 
   handleRecordingError(error) {
     console.error('Recording error:', error)
-    this.showError(error.message)
+    this.showError(error.message || 'Unknown recording error')
   }
 
   showError(message) {
@@ -157,12 +162,16 @@ let recordingManager = null
 function startRecording() {
   if (recordingManager) {
     recordingManager.startRecording()
+  } else {
+    console.error('RecordingManager not initialized')
   }
 }
 
 function stopRecording() {
   if (recordingManager) {
     recordingManager.stopRecording()
+  } else {
+    console.error('RecordingManager not initialized')
   }
 }
 

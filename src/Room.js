@@ -2,19 +2,46 @@ const config = require('./config')
 module.exports = class Room {
   constructor(room_id, worker, io) {
     this.id = room_id
-    const mediaCodecs = config.mediasoup.router.mediaCodecs
-    worker
-      .createRouter({
-        mediaCodecs
-      })
-      .then(
-        function (router) {
-          this.router = router
-        }.bind(this)
-      )
-
     this.peers = new Map()
     this.io = io
+    this.router = null
+    this.routerReady = false
+  }
+
+  async initializeRouter(worker) {
+    try {
+      const mediaCodecs = config.mediasoup.router.mediaCodecs
+      this.router = await worker.createRouter({
+        mediaCodecs
+      })
+      this.routerReady = true
+      console.log(`Router initialized for room ${this.id}`)
+      return this.router
+    } catch (error) {
+      console.error(`Failed to initialize router for room ${this.id}:`, error)
+      throw error
+    }
+  }
+
+  async waitForRouter() {
+    if (this.routerReady) {
+      return this.router
+    }
+
+    // Wait for router initialization
+    return new Promise((resolve, reject) => {
+      const checkRouter = () => {
+        if (this.routerReady) {
+          resolve(this.router)
+        } else if (this.router === null) {
+          // Router failed to initialize
+          reject(new Error('Router not initialized'))
+        } else {
+          setTimeout(checkRouter, 100)
+        }
+      }
+      checkRouter()
+    })
   }
 
   addPeer(peer) {
@@ -34,6 +61,9 @@ module.exports = class Room {
   }
 
   getRtpCapabilities() {
+    if (!this.router) {
+      throw new Error('Router not initialized')
+    }
     return this.router.rtpCapabilities
   }
 
