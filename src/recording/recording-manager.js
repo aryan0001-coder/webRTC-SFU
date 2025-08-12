@@ -144,6 +144,12 @@ class RecordingManager {
             await consumer.resume()
             if (consumer.kind === 'video') {
               try { await consumer.requestKeyFrame() } catch (e) { console.warn('requestKeyFrame failed:', e?.message || e) }
+              // Request additional keyframes shortly after start to ensure FFmpeg gets dimensions
+              for (let i = 1; i <= 5; i += 1) {
+                setTimeout(() => {
+                  consumer.requestKeyFrame().catch(() => {})
+                }, i * 400)
+              }
             }
           } catch (e) {
             console.warn('Failed to resume consumer:', e?.message || e)
