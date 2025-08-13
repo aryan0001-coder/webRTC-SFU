@@ -65,8 +65,12 @@ module.exports = class FFmpeg {
       'pipe,udp,rtp',
       '-fflags',
       '+genpts',
-      '-copyts',
-      '-start_at_zero',
+      '-reset_timestamps',
+      '1',
+      '-muxpreload',
+      '0',
+      '-muxdelay',
+      '0',
       '-analyzeduration',
       '10000000',
       '-probesize',
@@ -84,6 +88,9 @@ module.exports = class FFmpeg {
     if (this._rtpParameters.audioCodec) {
       commandArgs = commandArgs.concat(['-map', '0:a:0', '-c:a', 'copy', '-strict', '-2'])
     }
+
+    // Ensure the output stops at the shortest stream and duration is sane
+    commandArgs = commandArgs.concat(['-shortest'])
 
     commandArgs = commandArgs.concat([
       `${RECORD_FILE_LOCATION_PATH}/${this._rtpParameters.fileName}`
