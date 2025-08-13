@@ -276,6 +276,42 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('startMixedRecording', async (data, callback) => {
+    try {
+      console.log('Start mixed recording request:', { room_id: data.room_id, socket_id: socket.id })
+      if (!roomList.has(data.room_id)) {
+        return callback({ success: false, error: 'Room does not exist' })
+      }
+      const room = roomList.get(data.room_id)
+      const recordingHandler = new RecordingHandler(room, socket)
+      if (!socket.recordingHandlers) socket.recordingHandlers = new Map()
+      const response = await recordingHandler.startMixedRecording(data)
+      if (response.success) {
+        socket.recordingHandlers.set(response.recording_id, recordingHandler)
+      }
+      callback(response)
+    } catch (error) {
+      console.error('Start mixed recording error:', error)
+      callback({ success: false, error: error.message })
+    }
+  })
+
+  socket.on('stopMixedRecording', async (data, callback) => {
+    try {
+      console.log('Stop mixed recording request:', { recording_id: data.recording_id, socket_id: socket.id })
+      if (!socket.recordingHandlers || !socket.recordingHandlers.has(data.recording_id)) {
+        return callback({ success: false, error: 'Recording not found' })
+      }
+      const recordingHandler = socket.recordingHandlers.get(data.recording_id)
+      const response = await recordingHandler.stopMixedRecording(data)
+      if (response.success) socket.recordingHandlers.delete(data.recording_id)
+      callback(response)
+    } catch (error) {
+      console.error('Stop mixed recording error:', error)
+      callback({ success: false, error: error.message })
+    }
+  })
+
   socket.on('stopRecording', async (data, callback) => {
     try {
       console.log('Stop recording request:', {
