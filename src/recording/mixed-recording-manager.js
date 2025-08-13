@@ -32,7 +32,7 @@ class MixedRecordingManager {
     throw new Error('No free UDP port available')
   }
 
-  _buildPerInputSdp({ kind, codec, clockRate, channels, payloadType, port, fmtp }) {
+  _buildPerInputSdp({ kind, codecName, clockRate, channels, payloadType, port, fmtp }) {
     const lines = [
       'v=0',
       'o=- 0 0 IN IP4 127.0.0.1',
@@ -43,14 +43,14 @@ class MixedRecordingManager {
     if (kind === 'video') {
       lines.push(
         `m=video ${port} RTP/AVP ${payloadType}`,
-        `a=rtpmap:${payloadType} VP8/${clockRate}`,
+        `a=rtpmap:${payloadType} ${codecName}/${clockRate}`,
         'a=recvonly'
       )
       if (fmtp) lines.push(`a=fmtp:${payloadType} ${fmtp}`)
     } else {
       lines.push(
         `m=audio ${port} RTP/AVP ${payloadType}`,
-        `a=rtpmap:${payloadType} opus/${clockRate}/${channels || 2}`,
+        `a=rtpmap:${payloadType} ${codecName}/${clockRate}/${channels || 2}`,
         'a=recvonly'
       )
       if (fmtp) lines.push(`a=fmtp:${payloadType} ${fmtp}`)
@@ -65,8 +65,10 @@ class MixedRecordingManager {
     const fmtp = c.parameters && Object.keys(c.parameters).length
       ? Object.entries(c.parameters).map(([k, v]) => `${k}=${v}`).join(';')
       : ''
+    const codecName = c.mimeType.split('/')[1]
     return {
       payloadType: c.payloadType,
+      codecName,
       clockRate: c.clockRate,
       channels: kind === 'audio' ? c.channels || 2 : undefined,
       fmtp
@@ -159,7 +161,7 @@ class MixedRecordingManager {
 
       const sdpText = this._buildPerInputSdp({
         kind: 'video',
-        codec: 'VP8',
+        codecName: codecInfo.codecName,
         clockRate: codecInfo.clockRate,
         payloadType: codecInfo.payloadType,
         fmtp: codecInfo.fmtp,
@@ -185,7 +187,7 @@ class MixedRecordingManager {
 
       const sdpText = this._buildPerInputSdp({
         kind: 'audio',
-        codec: 'opus',
+        codecName: codecInfo.codecName,
         clockRate: codecInfo.clockRate,
         channels: codecInfo.channels,
         payloadType: codecInfo.payloadType,
