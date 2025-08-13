@@ -65,6 +65,8 @@ module.exports = class FFmpeg {
       'pipe,udp,rtp',
       '-fflags',
       '+genpts',
+      '-copyts',
+      '-start_at_zero',
       '-analyzeduration',
       '10000000',
       '-probesize',
