@@ -1,71 +1,100 @@
-# 🎥 WebRTC Based Video Calling System
+# 🎥 WebRTC Video Conferencing System
 
-A modern, secure, and lightweight video conferencing solution built with WebRTC and Mediasoup. This system provides high-quality video/audio communication for teams, classrooms, and social gatherings with enterprise-grade security.
+A modern, secure, and scalable video conferencing solution built with WebRTC and Mediasoup. Designed for teams, educators, and organizations requiring high-quality real-time communication.
 
-## ✨ Features
+## ✨ Key Features
+ # Core Functionality
 
-- **Crystal Clear Video & Audio**: HD video with adaptive bitrate and noise cancellation
-- **Screen Sharing**: Share your entire screen or specific applications
-- **Multiple Rooms**: Create unlimited private meeting rooms
-- **Mobile Responsive**: Works seamlessly on all devices and browsers
-- **Easy Deployment**: Docker support for quick setup and scaling
+    -**HD Video/Audio Calling**: Adaptive bitrate streaming with echo cancellation
 
-## 🚀 Quick Start
+    -**Multi-Participant Meetings**: Support for large group video sessions
 
-### Prerequisites
-- Node.js 16+ and npm
-- Docker (optional, for containerized deployment)
+    -**Secure Communications**: End-to-end encrypted media channels
 
-### Installation
-```bash
-# Clone the repository
-git clone [your-repo-url]
-cd webrtc-video-calling-system
+# Collaboration Tools
 
-# Install dependencies
+    -**Screen Sharing**: Present applications or entire desktop
+
+# Administration
+
+    -**Room Management**: Create persistent or temporary meeting spaces
+
+    -**User Roles**: Host, presenter, and participant permissions
+
+    -**Usage Analytics**: Track meeting duration and participation
+
+### Technical Overview
+# Architecture
+
+    -**SFU Media Server**: Mediasoup for efficient media routing
+
+    -**Signaling**: WebSocket-based negotiation
+
+    -**Client SDK**: Vanilla JavaScript with adapter.js for cross-browser support
+
+# Media Capabilities
+
+    -**Codecs**: VP8/VP9/H.264, Opus audio
+
+    -**Adaptive Streaming**: Dynamic quality adjustment
+
+    -**Network Resilience**: ICE, STUN/TURN support
+
+## 🚀 Deployment Options
+# Local Development
+bash
+
+git clone https://github.com/your-repo/webrtc-video-calling.git
+cd webrtc-video-calling
 npm install
-
-# Start the application
 npm start
 
-# Access at http://localhost:3016
-```
 
-### Docker Deployment
-```bash
-# Build and run with Docker
-docker build -t webrtc-video-calling .
-docker run -p 3016:3016 -p 10000-10100:10000-10100 webrtc-video-calling
-```
-
-## 🔧 Configuration
-
-Edit `src/config.js` to customize:
-- Server port and IP binding
-- SSL certificate paths
-- Media codec settings
-- Transport configurations
-
-## 📱 Usage
-
-1. Open your browser to `http://localhost:3016`
-2. Enter a room name and your display name
-3. Share the room URL with participants
-4. Enjoy secure video communication!
-
-## 🛠️ Development
-
-```bash
-# Development mode with auto-reload
-npm run mon
-
-# Format code
-npm run lint
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+# Docker deployment (recommended)
+docker-compose up -d --build
 
 
+## 📊 Monitoring & Maintenance
+Health Checks
+bash
 
+# System status
+npm run status
+
+# Media server metrics
+curl http://localhost:3016/metrics
+
+## Scaling Recommendations
+
+    -**Horizontal Scaling**: Add media servers behind load balancer
+
+    -**Selective Forwarding**: Configure simulcast for large meetings
+
+    -**TURN Server**: Deploy for restrictive network environments
+
+## 📚 Documentation
+
+Explore additional resources:
+
+    API Reference
+
+    Media Configuration Guide
+
+    Troubleshooting
+
+## 🛡️ Security
+Compliance
+
+    WebRTC security best practices
+
+    Regular dependency audits
+
+    Configurable end-to-end encryption
+
+## Reporting Vulnerabilities
+
+Please email security@yourdomain.com for any security concerns.
+
+## 📜 License
+
+MIT License - See LICENSE for full text.
