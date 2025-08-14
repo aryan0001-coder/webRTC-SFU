@@ -8,14 +8,12 @@ A modern, secure, and lightweight video conferencing solution built with WebRTC 
 - **Screen Sharing**: Share your entire screen or specific applications
 - **Multiple Rooms**: Create unlimited private meeting rooms
 - **Mobile Responsive**: Works seamlessly on all devices and browsers
-- **End-to-End Security**: SSL/TLS encryption with secure room access
 - **Easy Deployment**: Docker support for quick setup and scaling
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 16+ and npm
-- SSL certificates (self-signed or Let's Encrypt)
 - Docker (optional, for containerized deployment)
 
 ### Installation
@@ -30,7 +28,7 @@ npm install
 # Start the application
 npm start
 
-# Access at https://localhost:3016
+# Access at http://localhost:3016
 ```
 
 ### Docker Deployment
@@ -50,7 +48,7 @@ Edit `src/config.js` to customize:
 
 ## 📱 Usage
 
-1. Open your browser to `https://localhost:3016`
+1. Open your browser to `http://localhost:3016`
 2. Enter a room name and your display name
 3. Share the room URL with participants
 4. Enjoy secure video communication!
@@ -69,10 +67,5 @@ npm run lint
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📞 Support
-
-For support, please open an issue on GitHub or contact the project maintainer.
