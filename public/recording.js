@@ -1,4 +1,3 @@
-// Frontend recording functionality
 class RecordingManager {
   constructor(socket, roomClient) {
     this.socket = socket
@@ -6,6 +5,10 @@ class RecordingManager {
     this.isRecording = false
     this.recordingId = null
     this.recordingTimer = null
+
+    this.isMixedRecording = false
+    this.mixedRecordingId = null
+    this.mixedTimer = null
 
     this.bindEvents()
   }
@@ -85,9 +88,82 @@ class RecordingManager {
     }
   }
 
+  async startMixedRecording() {
+    try {
+      const btn = document.getElementById('startMixedRecordingButton')
+      btn.disabled = true
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'
+
+      const response = await this.socket.request('startMixedRecording', {
+        room_id: this.roomClient.room_id,
+        user_name: this.roomClient.name
+      })
+
+      if (response.success) {
+        this.mixedRecordingId = response.recording_id
+        this.isMixedRecording = true
+        this.updateMixedUI(true)
+        this.startMixedTimer()
+        this.showSuccess('Mixed recording started successfully')
+        console.log('Mixed recording started:', response)
+      } else {
+        throw new Error(response.error || 'Failed to start mixed recording')
+      }
+    } catch (error) {
+      console.error('Start mixed recording error:', error)
+      this.showError(error.message || 'Unknown error occurred')
+    } finally {
+      const btn = document.getElementById('startMixedRecordingButton')
+      if (btn) {
+        btn.disabled = false
+        btn.innerHTML = '<i class="fas fa-th-large"></i> Start Mixed Recording'
+      }
+    }
+  }
+
+  async stopMixedRecording() {
+    try {
+      const btn = document.getElementById('stopMixedRecordingButton')
+      if (btn) btn.disabled = true
+
+      const response = await this.socket.request('stopMixedRecording', {
+        recording_id: this.mixedRecordingId
+      })
+
+      if (response.success) {
+        this.isMixedRecording = false
+        this.updateMixedUI(false)
+        this.stopMixedTimer()
+        this.showSuccess(`Mixed recording saved: ${response.file_name}`)
+        console.log('Mixed recording stopped:', response)
+      } else {
+        throw new Error(response.error || 'Failed to stop mixed recording')
+      }
+    } catch (error) {
+      console.error('Stop mixed recording error:', error)
+      this.showError(error.message || 'Unknown error occurred')
+    } finally {
+      const btn = document.getElementById('stopMixedRecordingButton')
+      if (btn) btn.disabled = false
+    }
+  }
+
   updateUI(isRecording) {
     const startBtn = document.getElementById('startRecordingButton')
     const stopBtn = document.getElementById('stopRecordingButton')
+
+    if (isRecording) {
+      if (startBtn) startBtn.classList.add('hidden')
+      if (stopBtn) stopBtn.classList.remove('hidden')
+    } else {
+      if (startBtn) startBtn.classList.remove('hidden')
+      if (stopBtn) stopBtn.classList.add('hidden')
+    }
+  }
+
+  updateMixedUI(isRecording) {
+    const startBtn = document.getElementById('startMixedRecordingButton')
+    const stopBtn = document.getElementById('stopMixedRecordingButton')
 
     if (isRecording) {
       if (startBtn) startBtn.classList.add('hidden')
@@ -132,6 +208,38 @@ class RecordingManager {
     }
   }
 
+  startMixedTimer() {
+    let seconds = 0
+    this.mixedTimer = setInterval(() => {
+      if (!this.isMixedRecording) {
+        clearInterval(this.mixedTimer)
+        return
+      }
+
+      seconds++
+      const minutes = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      const timeText = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+
+      const stopBtn = document.getElementById('stopMixedRecordingButton')
+      if (stopBtn) {
+        stopBtn.innerHTML = `<i class="fas fa-stop"></i> Mixed ${timeText}`
+      }
+    }, 1000)
+  }
+
+  stopMixedTimer() {
+    if (this.mixedTimer) {
+      clearInterval(this.mixedTimer)
+      this.mixedTimer = null
+    }
+
+    const stopBtn = document.getElementById('stopMixedRecordingButton')
+    if (stopBtn) {
+      stopBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Mixed Recording'
+    }
+  }
+
   handleRecordingStarted(data) {
     console.log('Recording started:', data)
   }
@@ -170,6 +278,22 @@ function startRecording() {
 function stopRecording() {
   if (recordingManager) {
     recordingManager.stopRecording()
+  } else {
+    console.error('RecordingManager not initialized')
+  }
+}
+
+function startMixedRecording() {
+  if (recordingManager) {
+    recordingManager.startMixedRecording()
+  } else {
+    console.error('RecordingManager not initialized')
+  }
+}
+
+function stopMixedRecording() {
+  if (recordingManager) {
+    recordingManager.stopMixedRecording()
   } else {
     console.error('RecordingManager not initialized')
   }

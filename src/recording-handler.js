@@ -1,10 +1,12 @@
 const RecordingManager = require('./recording/recording-manager')
+const MixedRecordingManager = require('./recording/mixed-recording-manager')
 
 class RecordingHandler {
   constructor(room, socket) {
     this.room = room
     this.socket = socket
     this.recordingManager = new RecordingManager(room, socket)
+    this.mixedRecordingManager = new MixedRecordingManager(room, socket)
   }
 
   async startRecording(data) {
@@ -51,6 +53,26 @@ class RecordingHandler {
         success: false,
         error: error.message
       }
+    }
+  }
+
+  async startMixedRecording(data) {
+    try {
+      const response = await this.mixedRecordingManager.startMixedRecording(data)
+      return response
+    } catch (error) {
+      console.error('Start mixed recording error:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  async stopMixedRecording(data) {
+    try {
+      const response = await this.mixedRecordingManager.stopMixedRecording(data)
+      return response
+    } catch (error) {
+      console.error('Stop mixed recording error:', error)
+      return { success: false, error: error.message }
     }
   }
 }
