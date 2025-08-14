@@ -7,6 +7,7 @@ const path = require('path')
 const Room = require('./Room')
 const Peer = require('./Peer')
 const RecordingHandler = require('./recording-handler')
+const PerParticipantRecorder = require('./recording/per-participant-recorder')
 
 const httpServer = http.createServer(app)
 const io = require('socket.io')(httpServer)
@@ -343,6 +344,61 @@ io.on('connection', (socket) => {
     }
   })
 })
+
+// REST endpoints for per-participant server-side recordings
+const expressRouter = express.Router()
+
+// Start per-participant recording for a room
+expressRouter.post('/rooms/:roomId/recordings', async (req, res) => {
+  try {
+    const { roomId } = req.params
+    if (!roomList.has(roomId)) return res.status(404).json({ error: 'Room not found' })
+    const room = roomList.get(roomId)
+    if (!room.perParticipantRecorder) room.perParticipantRecorder = new PerParticipantRecorder(room)
+    const recordingId = await room.perParticipantRecorder.start(roomId)
+    res.json({ recordingId })
+  } catch (error) {
+    console.error('REST start recording error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Stop a recording by id
+expressRouter.delete('/recordings/:recordingId', async (req, res) => {
+  try {
+    const { recordingId } = req.params
+    // Find recorder that owns this id
+    for (const [, room] of roomList) {
+      const r = room.perParticipantRecorder
+      if (r && r.get(recordingId)) {
+        const meta = await r.stop(recordingId)
+        return res.json(meta)
+      }
+    }
+    res.status(404).json({ error: 'Recording not found' })
+  } catch (error) {
+    console.error('REST stop recording error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get recording info
+expressRouter.get('/recordings/:recordingId', async (req, res) => {
+  try {
+    const { recordingId } = req.params
+    for (const [, room] of roomList) {
+      const r = room.perParticipantRecorder
+      const st = r && r.get(recordingId)
+      if (st) return res.json({ id: st.id, roomId: st.roomId, startedAt: st.startedAt, files: st.items.map((i) => i.outFile) })
+    }
+    res.status(404).json({ error: 'Recording not found' })
+  } catch (error) {
+    console.error('REST get recording error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.use('/api', expressRouter)
 
 // TODO remove - never used?
 function room() {
