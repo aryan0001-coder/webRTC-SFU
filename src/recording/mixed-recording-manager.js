@@ -36,15 +36,21 @@ class MixedRecordingManager {
     throw new Error('No free UDP port available')
   }
 
-  _buildPerInputSdp({ kind, codec, clockRate, channels, payloadType, port, fmtp }) {
+  _buildPerInputSdp({ kind, codecName, clockRate, channels, payloadType, port, fmtp }) {
     const lines = ['v=0', 'o=- 0 0 IN IP4 127.0.0.1', 's=FFmpegInput', 'c=IN IP4 127.0.0.1', 't=0 0']
     if (kind === 'video') {
-      lines.push(`m=video ${port} RTP/AVP ${payloadType}`, `a=rtpmap:${payloadType} VP8/${clockRate}`, 'a=recvonly')
+      lines.push(
+        `m=video ${port} RTP/AVP ${payloadType}`,
+        `a=rtpmap:${payloadType} ${codecName}/${clockRate}`,
+        `a=rtcp:${port + 1} IN IP4 127.0.0.1`,
+        'a=recvonly'
+      )
       if (fmtp) lines.push(`a=fmtp:${payloadType} ${fmtp}`)
     } else {
       lines.push(
         `m=audio ${port} RTP/AVP ${payloadType}`,
-        `a=rtpmap:${payloadType} opus/${clockRate}/${channels || 2}`,
+        `a=rtpmap:${payloadType} ${codecName}/${clockRate}/${channels || 2}`,
+        `a=rtcp:${port + 1} IN IP4 127.0.0.1`,
         'a=recvonly'
       )
       if (fmtp) lines.push(`a=fmtp:${payloadType} ${fmtp}`)
@@ -64,6 +70,7 @@ class MixedRecordingManager {
         : ''
     return {
       payloadType: c.payloadType,
+      codecName: c.mimeType.split('/')[1],
       clockRate: c.clockRate,
       channels: kind === 'audio' ? c.channels || 2 : undefined,
       fmtp
@@ -108,7 +115,7 @@ class MixedRecordingManager {
     return parts.join(';')
   }
 
-  async startMixedRecording({ room_id, user_name, width = 1920, height = 1080 }) {
+  async startMixedRecording({ room_id, user_name, width = 1920, height = 1080, container = 'webm' }) {
     const router = this.room?.router
     if (!router) throw new Error('Router not initialized')
 
@@ -135,7 +142,8 @@ class MixedRecordingManager {
 
     // Prepare state
     const recordingId = `rec-mix-${Date.now()}`
-    const fileName = `mixed-${recordingId}.webm`
+    const containerExt = container === 'mp4' ? 'mp4' : container === 'mkv' ? 'mkv' : 'webm'
+    const fileName = `mixed-${recordingId}.${containerExt}`
     const outDir = process.env.RECORD_FILE_LOCATION_PATH || './files'
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true })
     const sdpDir = path.join(outDir, 'sdp', recordingId)
@@ -162,7 +170,7 @@ class MixedRecordingManager {
 
       const sdpText = this._buildPerInputSdp({
         kind: 'video',
-        codec: 'VP8',
+        codecName: codecInfo.codecName,
         clockRate: codecInfo.clockRate,
         payloadType: codecInfo.payloadType,
         fmtp: codecInfo.fmtp,
@@ -192,7 +200,7 @@ class MixedRecordingManager {
 
       const sdpText = this._buildPerInputSdp({
         kind: 'audio',
-        codec: 'opus',
+        codecName: codecInfo.codecName,
         clockRate: codecInfo.clockRate,
         channels: codecInfo.channels,
         payloadType: codecInfo.payloadType,
@@ -237,26 +245,69 @@ class MixedRecordingManager {
     ffArgs.push('-map', '[v]')
     if (audioCount > 0) ffArgs.push('-map', '[a]')
 
-    // Re-encode since we are composing
-    ffArgs.push(
-      '-c:v',
-      'libvpx',
-      '-b:v',
-      '2500k',
-      '-crf',
-      '30',
-      '-r',
-      '30',
-      '-pix_fmt',
-      'yuv420p',
-      '-deadline',
-      'realtime',
-      '-c:a',
-      'libopus',
-      '-b:a',
-      '128k',
-      outputPath
-    )
+    if (containerExt === 'mp4') {
+      ffArgs.push(
+        '-c:v',
+        'libx264',
+        '-preset',
+        'ultrafast',
+        '-tune',
+        'zerolatency',
+        '-profile:v',
+        'baseline',
+        '-pix_fmt',
+        'yuv420p',
+        '-g',
+        '50',
+        '-keyint_min',
+        '50',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart+frag_keyframe+empty_moov',
+        outputPath
+      )
+    } else if (containerExt === 'mkv') {
+      ffArgs.push(
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-pix_fmt',
+        'yuv420p',
+        '-g',
+        '50',
+        '-keyint_min',
+        '50',
+        '-c:a',
+        'libmp3lame',
+        '-b:a',
+        '128k',
+        outputPath
+      )
+    } else {
+      ffArgs.push(
+        '-c:v',
+        'libvpx',
+        '-b:v',
+        '2500k',
+        '-crf',
+        '30',
+        '-r',
+        '30',
+        '-pix_fmt',
+        'yuv420p',
+        '-deadline',
+        'realtime',
+        '-c:a',
+        'libopus',
+        '-b:a',
+        '128k',
+        outputPath
+      )
+    }
 
     // Start FFmpeg
     const ff = spawn('ffmpeg', ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
