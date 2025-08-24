@@ -110,7 +110,6 @@ io.on('connection', (socket) => {
     if (!roomList.has(socket.room_id)) return
     console.log('Get producers', { name: `${roomList.get(socket.room_id).getPeers().get(socket.id).name}` })
 
-    // send all the current producer to newly joined member
     let producerList = roomList.get(socket.room_id).getProducerListForPeer()
 
     socket.emit('newProducers', producerList)
@@ -175,7 +174,6 @@ io.on('connection', (socket) => {
   })
 
   socket.on('consume', async ({ consumerTransportId, producerId, rtpCapabilities }, callback) => {
-    //TODO null handling
     let params = await roomList.get(socket.room_id).consume(socket.id, consumerTransportId, producerId, rtpCapabilities)
 
     console.log('Consuming', {
@@ -224,7 +222,7 @@ io.on('connection', (socket) => {
       })
       return
     }
-    // close transports
+
     await roomList.get(socket.room_id).removePeer(socket.id)
     if (roomList.get(socket.room_id).getPeers().size === 0) {
       roomList.delete(socket.room_id)
@@ -235,7 +233,6 @@ io.on('connection', (socket) => {
     callback('successfully exited room')
   })
 
-  // Recording functionality
   socket.on('startRecording', async (data, callback) => {
     try {
       console.log('Start recording request:', {
@@ -344,7 +341,6 @@ io.on('connection', (socket) => {
   })
 })
 
-// TODO remove - never used?
 function room() {
   return Object.values(roomList).map((r) => {
     return {

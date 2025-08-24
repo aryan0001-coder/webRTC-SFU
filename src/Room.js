@@ -34,7 +34,6 @@ module.exports = class Room {
         if (this.routerReady) {
           resolve(this.router)
         } else if (this.router === null) {
-          // Router failed to initialize
           reject(new Error('Router not initialized'))
         } else {
           setTimeout(checkRouter, 100)
@@ -116,7 +115,6 @@ module.exports = class Room {
   }
 
   async produce(socket_id, producerTransportId, rtpParameters, kind) {
-    // handle undefined errors
     return new Promise(
       async function (resolve, reject) {
         let producer = await this.peers.get(socket_id).createProducer(producerTransportId, rtpParameters, kind)
@@ -132,7 +130,6 @@ module.exports = class Room {
   }
 
   async consume(socket_id, consumer_transport_id, producer_id, rtpCapabilities) {
-    // handle nulls
     if (
       !this.router.canConsume({
         producerId: producer_id,
@@ -155,7 +152,7 @@ module.exports = class Room {
           consumer_id: `${consumer.id}`
         })
         this.peers.get(socket_id).removeConsumer(consumer.id)
-        // tell client consumer is dead
+
         this.io.to(socket_id).emit('consumerClosed', {
           consumer_id: consumer.id
         })

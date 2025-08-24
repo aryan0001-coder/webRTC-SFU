@@ -25,7 +25,6 @@ class RecordingHandler {
         throw new Error('Room router not initialized')
       }
 
-      // Ensure router has required methods
       if (!router.rtpCapabilities || !router.rtpCapabilities.codecs) {
         throw new Error('Router RTP capabilities not available')
       }

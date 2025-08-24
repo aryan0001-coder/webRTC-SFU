@@ -1,4 +1,3 @@
-// Utility functions from mediasoup3-record-demo
 const { Readable } = require('stream')
 
 module.exports.convertStringToStream = (stringToConvert) => {

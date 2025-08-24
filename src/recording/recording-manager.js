@@ -187,7 +187,6 @@ class RecordingManager {
 
       const recording = this.activeRecordings.get(recording_id)
 
-      // Close all consumers
       for (const consumer of recording.producers) {
         try {
           await consumer.close()
@@ -196,10 +195,8 @@ class RecordingManager {
         }
       }
 
-      // Stop FFmpeg
       if (recording.ffmpeg) recording.ffmpeg.kill()
 
-      // Close transports
       try {
         if (recording.videoTransport) await recording.videoTransport.close()
       } catch (e) {
@@ -211,10 +208,8 @@ class RecordingManager {
         console.error('Error closing audio transport:', e)
       }
 
-      // Check if file exists
       const fileExists = fs.existsSync(recording.filePath)
 
-      // Clean up
       this.activeRecordings.delete(recording_id)
 
       return {
@@ -275,7 +270,6 @@ class RecordingManager {
           paused: true
         })
 
-        // Do not resume yet; wait until FFmpeg is ready
         recording.producers.push(consumer)
 
         if (producer.kind === 'video') {

@@ -81,10 +81,8 @@ module.exports = class FFmpeg {
       'pipe:0'
     ]
 
-    // Map video
     commandArgs = commandArgs.concat(['-map', '0:v:0', '-c:v', 'copy'])
 
-    // Map audio only if present in SDP (by presence of audioCodec)
     if (this._rtpParameters.audioCodec) {
       commandArgs = commandArgs.concat(['-map', '0:a:0', '-c:a', 'copy', '-strict', '-2'])
     }

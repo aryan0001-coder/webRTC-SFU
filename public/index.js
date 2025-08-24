@@ -96,7 +96,6 @@ function addListeners() {
 let isEnumerateDevices = false
 
 function initEnumerateDevices() {
-  // Many browsers, without the consent of getUserMedia, cannot enumerate the devices.
   if (isEnumerateDevices) return
 
   const constraints = {
@@ -118,7 +117,6 @@ function initEnumerateDevices() {
 }
 
 function enumerateDevices() {
-  // Load mediaDevice options
   navigator.mediaDevices.enumerateDevices().then((devices) =>
     devices.forEach((device) => {
       let el = null

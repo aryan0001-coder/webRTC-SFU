@@ -648,7 +648,7 @@ class RoomClient {
 
     try {
       document.execCommand('copy')
-      console.log('URL copied to clipboard 👍')
+      console.log('URL copied to clipboard ')
 
       // Show visual feedback
       const button = document.getElementById('copyButton')

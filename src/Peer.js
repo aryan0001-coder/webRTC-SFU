@@ -20,7 +20,6 @@ module.exports = class Peer {
   }
 
   async createProducer(producerTransportId, rtpParameters, kind) {
-    //TODO handle null errors
     let producer = await this.transports.get(producerTransportId).produce({
       kind,
       rtpParameters

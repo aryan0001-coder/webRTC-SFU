@@ -34,7 +34,8 @@ class RecordingManager {
       btn.disabled = true
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'
 
-      const response = await this.socket.request('startRecording', {
+      // Default to mixed recording under the hood
+      const response = await this.socket.request('startMixedRecording', {
         room_id: this.roomClient.room_id,
         user_name: this.roomClient.name
       })
@@ -45,7 +46,7 @@ class RecordingManager {
         this.updateUI(true)
         this.startRecordingTimer()
         this.showSuccess('Recording started successfully')
-        console.log('Recording started:', response)
+        console.log('Recording started (mixed):', response)
       } else {
         throw new Error(response.error || 'Failed to start recording')
       }
@@ -66,7 +67,8 @@ class RecordingManager {
       const btn = document.getElementById('stopRecordingButton')
       if (btn) btn.disabled = true
 
-      const response = await this.socket.request('stopRecording', {
+      // Default to stopping mixed recording
+      const response = await this.socket.request('stopMixedRecording', {
         recording_id: this.recordingId
       })
 
@@ -75,7 +77,7 @@ class RecordingManager {
         this.updateUI(false)
         this.stopRecordingTimer()
         this.showSuccess(`Recording saved: ${response.file_name}`)
-        console.log('Recording stopped:', response)
+        console.log('Recording stopped (mixed):', response)
       } else {
         throw new Error(response.error || 'Failed to stop recording')
       }
@@ -88,11 +90,12 @@ class RecordingManager {
     }
   }
 
+  // Mixed helpers remain (not used by UI now)
   async startMixedRecording() {
     try {
       const btn = document.getElementById('startMixedRecordingButton')
-      btn.disabled = true
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'
+      btn && (btn.disabled = true)
+      if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...'
 
       const response = await this.socket.request('startMixedRecording', {
         room_id: this.roomClient.room_id,
