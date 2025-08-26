@@ -1,0 +1,10 @@
+v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=FFmpegInput
+c=IN IP4 127.0.0.1
+t=0 0
+m=audio 41774 RTP/AVP 100
+a=rtpmap:100 opus/48000/2
+a=rtcp:41775 IN IP4 127.0.0.1
+a=recvonly
+a=fmtp:100 minptime=10;useinbandfec=1

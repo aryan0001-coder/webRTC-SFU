@@ -5,12 +5,21 @@ class RecordingManager {
     this.isRecording = false
     this.recordingId = null
     this.recordingTimer = null
+    this.recordingStartTime = null
+    this.recordingEndTime = null
 
     this.isMixedRecording = false
     this.mixedRecordingId = null
     this.mixedTimer = null
+    this.mixedRecordingStartTime = null
+    this.mixedRecordingEndTime = null
 
     this.bindEvents()
+
+    // Set up periodic health check
+    this.healthCheckInterval = setInterval(() => {
+      this.checkRecordingHealth()
+    }, 30000) // Check every 30 seconds
   }
 
   bindEvents() {
@@ -25,6 +34,11 @@ class RecordingManager {
 
     this.socket.on('recordingError', (error) => {
       this.handleRecordingError(error)
+    })
+
+    // Add new events for better synchronization
+    this.socket.on('recordingStateChanged', (data) => {
+      this.handleRecordingStateChanged(data)
     })
   }
 
@@ -42,11 +56,21 @@ class RecordingManager {
 
       if (response.success) {
         this.recordingId = response.recording_id
-        this.isRecording = true
+        // Don't start timer immediately - wait for server confirmation
         this.updateUI(true)
-        this.startRecordingTimer()
-        this.showSuccess('Recording started successfully')
-        console.log('Recording started (mixed):', response)
+        this.showSuccess('Recording request sent, starting...')
+        console.log('Recording request sent (mixed):', response)
+
+        // Fallback: if no server events received within 3 seconds, start timer anyway
+        setTimeout(() => {
+          if (!this.isRecording && this.recordingId) {
+            console.log('Fallback: Starting recording timer (no server events received)')
+            this.isRecording = true
+            this.recordingStartTime = Date.now()
+            this.startRecordingTimer()
+            this.showSuccess('Recording started (fallback mode)')
+          }
+        }, 3000)
       } else {
         throw new Error(response.error || 'Failed to start recording')
       }
@@ -73,11 +97,28 @@ class RecordingManager {
       })
 
       if (response.success) {
-        this.isRecording = false
-        this.updateUI(false)
-        this.stopRecordingTimer()
-        this.showSuccess(`Recording saved: ${response.file_name}`)
-        console.log('Recording stopped (mixed):', response)
+        // Don't stop timer immediately - wait for server confirmation
+        this.showSuccess('Recording stop request sent, processing...')
+        console.log('Recording stop request sent (mixed):', response)
+
+        // Fallback: if no server events received within 5 seconds, stop timer anyway
+        setTimeout(() => {
+          if (this.isRecording && this.recordingId) {
+            console.log('Fallback: Stopping recording timer (no server events received)')
+            this.isRecording = false
+            this.recordingEndTime = Date.now()
+            this.stopRecordingTimer()
+
+            if (this.recordingStartTime && this.recordingEndTime) {
+              const actualDuration = Math.round((this.recordingEndTime - this.recordingStartTime) / 1000)
+              this.showSuccess(`Recording completed (fallback mode)! Duration: ${actualDuration} seconds`)
+            } else {
+              this.showSuccess('Recording completed (fallback mode)!')
+            }
+
+            this.updateUI(false)
+          }
+        }, 5000)
       } else {
         throw new Error(response.error || 'Failed to stop recording')
       }
@@ -104,11 +145,10 @@ class RecordingManager {
 
       if (response.success) {
         this.mixedRecordingId = response.recording_id
-        this.isMixedRecording = true
+        // Don't start timer immediately - wait for server confirmation
         this.updateMixedUI(true)
-        this.startMixedTimer()
-        this.showSuccess('Mixed recording started successfully')
-        console.log('Mixed recording started:', response)
+        this.showSuccess('Mixed recording request sent, starting...')
+        console.log('Mixed recording request sent:', response)
       } else {
         throw new Error(response.error || 'Failed to start mixed recording')
       }
@@ -134,11 +174,9 @@ class RecordingManager {
       })
 
       if (response.success) {
-        this.isMixedRecording = false
-        this.updateMixedUI(false)
-        this.stopMixedTimer()
-        this.showSuccess(`Mixed recording saved: ${response.file_name}`)
-        console.log('Mixed recording stopped:', response)
+        // Don't stop timer immediately - wait for server confirmation
+        this.showSuccess('Mixed recording stop request sent, processing...')
+        console.log('Mixed recording stop request sent:', response)
       } else {
         throw new Error(response.error || 'Failed to stop mixed recording')
       }
@@ -178,16 +216,19 @@ class RecordingManager {
   }
 
   startRecordingTimer() {
-    let seconds = 0
+    if (this.recordingTimer) {
+      clearInterval(this.recordingTimer)
+    }
+
     this.recordingTimer = setInterval(() => {
-      if (!this.isRecording) {
+      if (!this.isRecording || !this.recordingStartTime) {
         clearInterval(this.recordingTimer)
         return
       }
 
-      seconds++
-      const minutes = Math.floor(seconds / 60)
-      const secs = seconds % 60
+      const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000)
+      const minutes = Math.floor(elapsed / 60)
+      const secs = elapsed % 60
       const timeText = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 
       // Update button text to show recording time
@@ -212,16 +253,19 @@ class RecordingManager {
   }
 
   startMixedTimer() {
-    let seconds = 0
+    if (this.mixedTimer) {
+      clearInterval(this.mixedTimer)
+    }
+
     this.mixedTimer = setInterval(() => {
-      if (!this.isMixedRecording) {
+      if (!this.isMixedRecording || !this.mixedRecordingStartTime) {
         clearInterval(this.mixedTimer)
         return
       }
 
-      seconds++
-      const minutes = Math.floor(seconds / 60)
-      const secs = seconds % 60
+      const elapsed = Math.floor((Date.now() - this.mixedRecordingStartTime) / 1000)
+      const minutes = Math.floor(elapsed / 60)
+      const secs = elapsed % 60
       const timeText = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 
       const stopBtn = document.getElementById('stopMixedRecordingButton')
@@ -245,14 +289,81 @@ class RecordingManager {
 
   handleRecordingStarted(data) {
     console.log('Recording started:', data)
+
+    // Only start timer when server confirms recording has actually started
+    if (data.recording_id === this.recordingId || data.recording_id === this.mixedRecordingId) {
+      if (data.recording_id === this.recordingId) {
+        this.isRecording = true
+        this.recordingStartTime = Date.now()
+        this.startRecordingTimer()
+        this.showSuccess('Recording is now active!')
+      } else if (data.recording_id === this.mixedRecordingId) {
+        this.isMixedRecording = true
+        this.mixedRecordingStartTime = Date.now()
+        this.startMixedTimer()
+        this.showSuccess('Mixed recording is now active!')
+      }
+    }
   }
 
   handleRecordingStopped(data) {
     console.log('Recording stopped:', data)
+
+    // Only stop timer when server confirms recording has actually stopped
+    if (data.recording_id === this.recordingId || data.recording_id === this.mixedRecordingId) {
+      if (data.recording_id === this.recordingId) {
+        this.isRecording = false
+        this.recordingEndTime = Date.now()
+        this.stopRecordingTimer()
+
+        // Calculate actual recording duration
+        if (this.recordingStartTime && this.recordingEndTime) {
+          const actualDuration = Math.round((this.recordingEndTime - this.recordingStartTime) / 1000)
+          this.showSuccess(`Recording completed! Duration: ${actualDuration} seconds`)
+        } else {
+          this.showSuccess('Recording completed!')
+        }
+
+        this.updateUI(false)
+      } else if (data.recording_id === this.mixedRecordingId) {
+        this.isMixedRecording = false
+        this.mixedRecordingEndTime = Date.now()
+        this.stopMixedTimer()
+
+        // Calculate actual mixed recording duration
+        if (this.mixedRecordingStartTime && this.mixedRecordingEndTime) {
+          const actualDuration = Math.round((this.mixedRecordingEndTime - this.mixedRecordingStartTime) / 1000)
+          this.showSuccess(`Mixed recording completed! Duration: ${actualDuration} seconds`)
+        } else {
+          this.showSuccess('Mixed recording completed!')
+        }
+
+        this.updateMixedUI(false)
+      }
+    }
+  }
+
+  handleRecordingStateChanged(data) {
+    console.log('Recording state changed:', data)
+
+    // Handle intermediate state changes from server
+    if (data.recording_id === this.recordingId || data.recording_id === this.mixedRecordingId) {
+      if (data.state === 'starting') {
+        this.showSuccess('Recording is starting on server...')
+      } else if (data.state === 'stopping') {
+        this.showSuccess('Recording is stopping on server...')
+      } else if (data.state === 'processing') {
+        this.showSuccess('Recording is being processed...')
+      }
+    }
   }
 
   handleRecordingError(error) {
     console.error('Recording error:', error)
+
+    // Reset state on error
+    this.resetRecordingState()
+
     this.showError(error.message || 'Unknown recording error')
   }
 
@@ -264,6 +375,80 @@ class RecordingManager {
   showSuccess(message) {
     console.log('Recording Success:', message)
     alert('Recording Success: ' + message)
+  }
+
+  // Cleanup method to be called when component unmounts
+  cleanup() {
+    this.resetRecordingState()
+
+    // Clear health check interval
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval)
+      this.healthCheckInterval = null
+    }
+
+    // Remove event listeners
+    if (this.socket) {
+      this.socket.off('recordingStarted')
+      this.socket.off('recordingStopped')
+      this.socket.off('recordingError')
+      this.socket.off('recordingStateChanged')
+    }
+  }
+
+  resetRecordingState() {
+    this.isRecording = false
+    this.recordingId = null
+    this.recordingStartTime = null
+    this.recordingEndTime = null
+    this.stopRecordingTimer()
+
+    this.isMixedRecording = false
+    this.mixedRecordingId = null
+    this.mixedRecordingStartTime = null
+    this.mixedRecordingEndTime = null
+    this.stopMixedTimer()
+
+    this.updateUI(false)
+    this.updateMixedUI(false)
+  }
+
+  // Method to get current recording duration
+  getCurrentRecordingDuration() {
+    if (!this.isRecording || !this.recordingStartTime) {
+      return 0
+    }
+    return Math.floor((Date.now() - this.recordingStartTime) / 1000)
+  }
+
+  // Method to get current mixed recording duration
+  getCurrentMixedRecordingDuration() {
+    if (!this.isMixedRecording || !this.mixedRecordingStartTime) {
+      return 0
+    }
+    return Math.floor((Date.now() - this.mixedRecordingStartTime) / 1000)
+  }
+
+  // Method to handle recording timeouts
+  handleRecordingTimeout() {
+    if (this.isRecording) {
+      console.warn('Recording timeout detected, cleaning up...')
+      this.resetRecordingState()
+      this.showError('Recording timeout - please try again')
+    }
+  }
+
+  // Method to check recording health
+  checkRecordingHealth() {
+    if (this.isRecording && this.recordingStartTime) {
+      const elapsed = Date.now() - this.recordingStartTime
+      // If recording has been running for more than 2 hours, consider it stale
+      if (elapsed > 2 * 60 * 60 * 1000) {
+        console.warn('Recording appears to be stale, cleaning up...')
+        this.resetRecordingState()
+        this.showError('Recording appears to be stale - please restart')
+      }
+    }
   }
 }
 
